@@ -35,7 +35,7 @@
 #define MULITI_PACKET_LEN_MAX		512
 
 /*蓝牙连接后无数据超时断开时间，单位秒*/
-#define BLE_CONNECT_TIMEOUT			60
+#define BLE_CONNECT_TIMEOUT			300
     
 typedef struct 
 {

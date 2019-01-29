@@ -424,8 +424,10 @@ static char* print_value(cJSON *item, int depth, int fmt, printbuffer *p)
     char *out = 0;
 
     if (!item) return 0;
-    if (p) {
+    if (p) {	 
         switch ((item->type) & 255) {
+		  
+		  
         case cJSON_NULL:
             {out = ensure(p, 5);   if (out) strcpy(out, "null");    break;}
         case cJSON_False:
@@ -442,7 +444,10 @@ static char* print_value(cJSON *item, int depth, int fmt, printbuffer *p)
             out = print_object(item, depth, fmt, p); break;
         }
     } else {
+	  DBG_LOG("PrintBuffer 2");
+	  DBG_LOG("(item->type) & 255 = %d",((item->type) & 255));
         switch ((item->type) & 255) {
+		  
         case cJSON_NULL:
             out = cJSON_strdup("null");   break;
         case cJSON_False:

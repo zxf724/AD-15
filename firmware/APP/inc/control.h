@@ -35,8 +35,9 @@ typedef enum
 /* Exported constants --------------------------------------------------------*/
 /*电机转动的时间，单位ms*/
 #define MOTOR_ACTION_TIME     10
+#define MOVE_ACTION_TIME     100
 /*电机转动超时次数*/
-#define MOTOR_OVERFLOW_TIMES  1000
+#define MOTOR_OVERFLOW_TIMES  6000
 
 /*电量检测的间隔时间,单位ms*/
 #define BAT_CHECK_TIME        15000
@@ -90,6 +91,7 @@ void LED_STATUS_Flash_Start(uint16_t activetime, uint16_t idletime, uint16_t tim
 void TTS_Play(char *text);
 
 void WatchDog_Clear(void);
+uint8_t RFID_ReadPoll(uint8_t addr, uint8_t** data);
 
 #endif /* _Control_H */
 

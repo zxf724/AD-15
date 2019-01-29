@@ -11,7 +11,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
-
+#include "control.h"
 
 /** @addtogroup firmwave_F2_BLE
   * @{
@@ -81,7 +81,7 @@ int main(void) {
   user_uart_init();
   Command_Init();
   RTC_Init();
-
+    
   user_BLE_Start();
   WorkData_Init();
   user_BLE_Connected();
@@ -99,7 +99,6 @@ int main(void) {
   LED_OFF(NET);
   for (;;) {
     WatchDog_Clear();
-
     Protocol_DateProcPoll();
     CommandReceive_Poll();
     Control_Polling();

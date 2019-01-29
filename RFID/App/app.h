@@ -31,6 +31,7 @@
 #define CMD_READ_IC_FRIM_RSP    0x13
 #define CMD_WRITE_ID            0x04
 #define CMD_WRITE_FRIM          0x14
+#define CMD_TEST                0x55
 
 #define CARD_TYPE_USER          0x01                     //ø®¿‡–Õ - ∆’Õ®ø®
 

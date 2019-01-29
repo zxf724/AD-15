@@ -108,6 +108,7 @@ void WorkData_Init(void) {
   param.cb = pstorage_cb_handler;
   pstorage_register(&param, &psWorkData);
   DBG_LOG("psWorkData id:%#x", psWorkData.block_id);
+  DBG_LOG("PSTORAGE_FLASH_PAGE_SIZE:%d", PSTORAGE_FLASH_PAGE_SIZE);
 
   DataBackInit(FALSE);
 
@@ -115,6 +116,14 @@ void WorkData_Init(void) {
   Cmd_AddEntrance(CMD_ENT(workdata));
 
   DBG_LOG("WorkData Init.");
+}
+
+
+void Clear_LogData(void){
+	pstorage_clear(&psWorkData,sizeof(WorkParam_t));
+	pstorage_clear(&psLog,sizeof(StoreLog_t));
+	nrf_delay_ms(200);
+	NVIC_SystemReset();
 }
 
 /**
@@ -245,10 +254,16 @@ static void funWorkBack(int argc, char* argv[]) {
   argc--;
 
   StoreLog_t* log;
+  timeRTC_t timelog;
+  
   if (ARGV_EQUAL("readlog")) {
     log = STROE_LOG_POINT(uatoi(argv[1]));
-    DBG_LOG("readlog time:%u, rfid£º%#x.",
-            log->time, log->rfid);
+	DBG_LOG("readlog time:%u, rfid£º%#x.",log->time, log->rfid);
+	RTC_TickToTime(log->time, &timelog);
+	DBG_LOG("time: %04d-%d-%d %02d:%02d:%02d day-%d ", timelog.year,
+          timelog.month, timelog.date, timelog.hours, timelog.minutes,
+          timelog.seconds, timelog.day);
+
   } else if (ARGV_EQUAL("writelog")) {
     Write_StoreLog(uatoix(argv[1]));
     DBG_LOG("writelog OK.");
@@ -278,6 +293,25 @@ static void funWorkBack(int argc, char* argv[]) {
     WorkData.StockCount = 0;
     WorkData_Update();
   }
+  else if (ARGV_EQUAL("store")) {
+    WorkData.StockCount = 15;
+    WorkData_Update();
+  }
+  else if (ARGV_EQUAL("clearlog")) {
+    Clear_LogData();
+  }
+  else if (ARGV_EQUAL("reset")) {
+    WorkData.version = 0;
+    WorkData_Update();
+    NVIC_SystemReset();
+  }
+  DBG_LOG("version:%u", WorkData.version);
+  DBG_LOG("DeviceID:%u", WorkData.DeviceID);
+  DBG_LOG("StockCount:%u", WorkData.StockCount);
+  DBG_LOG("StockMax:%u", WorkData.StockMax);
+  DBG_LOG("StoreLog_In:%u", WorkData.StoreLog_In);
+  DBG_LOG("StoreLog_Report:%u", WorkData.StoreLog_Report);
+  DBG_LOG("MQTT_PingInvt:%u", WorkData.MQTT_PingInvt);
 }
 
 

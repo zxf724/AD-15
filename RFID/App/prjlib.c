@@ -548,6 +548,27 @@ uint8_t AddCheck(uint8_t* p_start, uint16_t len) {
 }
 
 /***
+ * Description : 数据流逐相加校验.
+ * Arguments   : p_start        数据流起始指针.
+ *               len            待校验的数据长度
+ * Returns     : 返回校验结果.
+ * Caller      : Application.
+ *******************************************************************************/
+
+uint8_t Check(uint8_t *buf,uint16_t len)
+{
+  uint8_t  temp = 0,i;
+  if(buf != NULL)
+  {
+    for(i=0;i<len;i++)
+    {
+      temp += buf[i];
+    }
+    
+  }
+  return temp;
+}
+/***
  * Description : 队列初始化.
  *******************************************************************************
  */

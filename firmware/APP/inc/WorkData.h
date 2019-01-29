@@ -22,7 +22,7 @@
 
 /* Exported types ------------------------------------------------------------*/
 /*固件版本,2BYTE*/
-#define VERSION			        1
+#define VERSION		    1
 /*硬件版本*/
 #define VERSION_HARDWARE    "AD15_EVT"
 
@@ -33,7 +33,7 @@
 #define LOG_STORE_MAX				1280
 
 /*伞架的默认数量*/
-#define UMBRELLA_STOCK_DEF  16
+#define UMBRELLA_STOCK_DEF  28
 
 /*默认服务器地址*/
 #define SERVER_DEF          "120.25.201.201"

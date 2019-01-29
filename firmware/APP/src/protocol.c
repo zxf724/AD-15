@@ -65,8 +65,8 @@ static protocol_fifo_t  ProtocolFifo;
 
 
 /* Private function prototypes -----------------------------------------------*/
-static BOOL Protocol_Analyse(uint8_t* dat, uint8_t len);
-static BOOL Protocol_Cmd_Analy(uint8_t* dat, uint8_t len);
+static uint8_t Protocol_Analyse(uint8_t* dat, uint8_t len);
+static uint8_t Protocol_Cmd_Analy(uint8_t* dat, uint8_t len);
 
 
 /* Exported functions ---------------------------------------------------------*/
@@ -96,10 +96,12 @@ void Protocol_DateProcPoll(void) {
     len = (uint8_t)*p++;
     ProtocolFifo.rpos++;
     AuthOK_TS = RTC_ReadCount();
-    if (Protocol_Analyse(p, len) == FALSE) {
+    DBG_LOG("AuthOK_TS %02u.s", AuthOK_TS);
+    if (Protocol_Analyse(p, len) == 0) {
       DBG_LOG("Invalid BLE format, BLE disconnect.");
       user_BLE_Disconnected();
     }
+    DBG_LOG("RTC_ReadCount() - AuthOK_TS = %02u.s", RTC_ReadCount() - AuthOK_TS);
   } else {
     /*超时无数据断开蓝牙连接*/
     if (BLE_Connect) {} else {
@@ -108,6 +110,7 @@ void Protocol_DateProcPoll(void) {
     if (BLE_Connect && RTC_ReadCount() - AuthOK_TS > BLE_CONNECT_TIMEOUT) {
       AuthOK_TS = RTC_ReadCount();
       DBG_LOG("AuthOK_TS %02u.s", AuthOK_TS);
+      
       user_BLE_Disconnected();
       DBG_LOG("Timeout disconnected.");
     }
@@ -242,7 +245,7 @@ void AesData_decrypt(uint8_t* data, uint8_t* key, uint16_t len) {
     * @param  none.
     * @retval none
     */
-static BOOL Protocol_Analyse(uint8_t* dat, uint8_t len) {
+static uint8_t Protocol_Analyse(uint8_t* dat, uint8_t len) {
   int16_t  i;
   DBG_LOG("handle the data:");
 
@@ -264,8 +267,25 @@ static BOOL Protocol_Analyse(uint8_t* dat, uint8_t len) {
 #endif
     return Protocol_Cmd_Analy((uint8_t*)dat, (uint8_t)len);
   }
-  return FALSE;
+  return 0;
 }
+
+
+static uint32_t getIntFromChar(uint8_t c) {  
+    uint32_t result = (uint32_t) c;  
+    return result & 0x000000ff;  
+} 
+
+uint32_t getWordFromStr(uint8_t *str) {  
+    uint32_t one = getIntFromChar(str[0]);  
+    one = one << 24;  
+    uint32_t two = getIntFromChar(str[1]);  
+    two = two << 16;  
+    uint32_t three = getIntFromChar(str[2]);  
+    three = three << 8;  
+    uint32_t four = getIntFromChar(str[3]);  
+    return one | two | three | four;  
+} 
 
 /**
  * 单包命令处理
@@ -273,8 +293,8 @@ static BOOL Protocol_Analyse(uint8_t* dat, uint8_t len) {
  * @param dat    输入的数据
  * @param len    数据长度
  */
-static BOOL Protocol_Cmd_Analy(uint8_t* dat, uint8_t len) {
-  BOOL ret = FALSE;
+static uint8_t Protocol_Cmd_Analy(uint8_t* dat, uint8_t len) {
+  uint8_t ret = 0;
   uint16_t run;
   uint8_t cmd = 0, temp[4];
 
@@ -282,13 +302,13 @@ static BOOL Protocol_Cmd_Analy(uint8_t* dat, uint8_t len) {
   if ((dat[0] & 0x03) != MSG_TYPE_CMD) {
     isAuthOK = FALSE;
     DBG_LOG("Command type invalid.");
-    return FALSE;
+    return 0;
   }
 
   /*比较滚动同步计数值*/
-  run = dat[5] | (dat[6] << 8);
+  run = (dat[6] << 8) | dat[5];
   if (run - authRunIndex >= 1 &&  run - authRunIndex < 5) {
-    ret = TRUE;
+    ret = 1;
     /*命令处理*/
     cmd = dat[0] >> 2;
     DBG_LOG("Receive command 0x%X.", (uint8_t)cmd);
@@ -296,16 +316,22 @@ static BOOL Protocol_Cmd_Analy(uint8_t* dat, uint8_t len) {
     switch (cmd) {
       /*校时*/
       case CMD_TIME_RALIB:
+
         memcpy(temp, (uint8_t*)&dat[7], 4);
+        DBG_LOG("*(uint32_t*)temp = %d",*(uint32_t*)temp);
         /*比较设备ID*/
         if (*(uint32_t*)temp == WorkData.DeviceID) {
+          DBG_LOG("timing .....");
           memcpy(temp, (uint8_t*)&dat[11], 4);
           RTC_SetCount(*(uint32_t*)temp);
+          if(WorkData.StockCount == 0)  Motor_staus = status_empty;
           temp[0] = 1;
           temp[1] = VERSION;
           temp[2] = WorkData.StockMax;
           temp[3] = WorkData.StockCount;
+          AuthOK_TS = RTC_ReadCount();
           Send_Cmd(0x19, temp, 4);
+          DBG_LOG("Running index timing, store:%u, receive:%u", authRunIndex, run);
         }
         break;
         /*借伞*/
@@ -313,13 +339,17 @@ static BOOL Protocol_Cmd_Analy(uint8_t* dat, uint8_t len) {
         memcpy(temp, (uint8_t*)&dat[7], 4);
         /*比较设备ID*/
         if (*(uint32_t*)temp == WorkData.DeviceID) {
+          DBG_LOG("Borrow_Action .....");
           Borrow_Action();
+          DBG_LOG("Running index borrowing , store:%u, receive:%u", authRunIndex, run);
         }
         break;
       default:
         break;
     }
   } else {
+    Send_Cmd(0x25, NULL, 0);
+    ret = 2;
     DBG_LOG("Running index fault, store:%u, receive:%u", authRunIndex, run);
   }
   authRunIndex = run;

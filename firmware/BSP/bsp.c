@@ -38,7 +38,10 @@ void BSP_Init(void) {
 
   nrf_gpio_cfg_output(M_CTR_R1);
   nrf_gpio_cfg_output(M_CTR_L1);
+  nrf_gpio_cfg_output(M_CTR_R2);
+  nrf_gpio_cfg_output(M_CTR_L2);
   MOTOR_STOP();
+  MOTOR2_STOP();
 
   nrf_gpio_cfg_output(LED_NET);
   nrf_gpio_cfg_output(LED_STATUS);
@@ -48,9 +51,13 @@ void BSP_Init(void) {
   nrf_gpio_cfg_output(PA_EN_PIN);
   nrf_gpio_pin_clear(PA_EN_PIN); 
 
+  nrf_gpio_cfg_output(IR_EN_PIN);
   nrf_gpio_cfg_input(IR_SENSOR_PIN, NRF_GPIO_PIN_PULLUP);
   nrf_gpio_cfg_input(OVER_SENSOR_PIN, NRF_GPIO_PIN_PULLUP);
+  nrf_gpio_cfg_input(FORWARD_SENSOR_PIN, NRF_GPIO_PIN_PULLUP);
+  nrf_gpio_cfg_input(BACK_SENSOR_PIN, NRF_GPIO_PIN_PULLUP);
   nrf_gpio_cfg_input(M_SEN_1, NRF_GPIO_PIN_PULLDOWN);
+  nrf_gpio_cfg_input(M_SEN_2, NRF_GPIO_PIN_PULLDOWN);
 
   nrf_gpio_cfg_input(GSM_EN_PIN, NRF_GPIO_PIN_NOPULL);
   nrf_gpio_cfg_input(GSM_PWRKEY_PIN, NRF_GPIO_PIN_NOPULL);

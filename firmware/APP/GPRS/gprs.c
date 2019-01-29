@@ -724,7 +724,6 @@ static char* WaitATRsp(char* token, uint16_t time) {
       RspBufIndex++;
       if ((RspBufIndex > 3 && RspBuf[RspBufIndex - 1] == '\n' && RspBuf[RspBufIndex - 2] == '\r')
           || *token == '>') {
-
         RspBuf[RspBufIndex] = 0;
         psearch = (char*)SearchMemData(RspBuf, (uint8_t*)token, RspBufIndex, strlen(token));
         if (psearch != NULL || strstr((char*)RspBuf, "ERROR")) {

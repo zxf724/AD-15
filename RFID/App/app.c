@@ -48,6 +48,7 @@ void RFID_Polling(void) {
   }
 }
 
+
 /**
  * 发送命令
  *
@@ -81,78 +82,146 @@ void SendCmd(uint8_t cmd, uint8_t* data, uint8_t datalen) {
   EN485_Recevie_ON;
 }
 
-
 /**
  * 接收处理命令
  */
-void ReadCmdDeal(void) {
-  uint8_t buf[32], len = 0;
+void ReadCmdDeal(void)
+{
+  uint8_t fifo_wpos = UART_RecFIFO.wpos;
 
-  if (TS_IS_OVER(tsUART, 50)) {
-    while (FIFO_Length(&UART_RecFIFO) >= 6 && FIFO_Get(&UART_RecFIFO) != 0x7E);
-    if (FIFO_Length(&UART_RecFIFO) >= 5 && FIFO_Get(&UART_RecFIFO) == 0x1B) {
-      buf[0] = 0x7E;
-      buf[1] = 0x1B;
-      FIFO_Read(&UART_RecFIFO, &buf[2], 3);
-      if (buf[4] > 0) {
-        FIFO_Read(&UART_RecFIFO, &buf[5], buf[4]);
-      }
-      len = buf[4] + 5;
-      buf[len] = FIFO_Get(&UART_RecFIFO);
-
-      if ((DevAddress == buf[2] || buf[2] == 0) && AddCheck(buf, len) == buf[len]) {
-        if (buf[3] == CMD_DEVICE_RST) {
-          LED_ON(GREEN);
-          WWDG_SWReset();
-          while (1);
-        } else if (buf[3] == CMD_DEVICE_CHK) {
-          LED_ON(GREEN);
-          SendCmd(CMD_DEVICE_CHK_RSP, NULL, 0);
-        } else if (buf[3] == CMD_READ_IC) {
-          if (IC_Read) {
-            LED_ON(GREEN);
-            SendCmd(CMD_READ_IC_RSP, IC_ReadBuf, 4);
-          } else {
-            LED_ON(RED);
-            TS_DELAY(100);
-            LED_OFF(RED);
-          }
-        } else if (buf[3] == CMD_READ_IC_FRIM) {
-          if (IC_Read) {
-            LED_ON(GREEN);
-            SendCmd(CMD_READ_IC_FRIM_RSP, IC_ReadBuf, 20);
-          } else {
-            LED_ON(RED);
-            TS_DELAY(100);
-            LED_OFF(RED);
-          }
-        } else if (buf[3] == CMD_WRITE_FRIM && buf[4] == 16) {
-          LED_ON(GREEN);
-          /*往IC卡中写入厂商信息*/
-          if (RfidWriteData(CARD_BLOCK, 1, &buf[5])) {
-            LED_ON(RED);
-            TS_DELAY(200);
-            LED_OFF(RED);
-            TS_DELAY(200);
-            IWDG_ReloadCounter();
-            LED_ON(RED);
-            TS_DELAY(200);
-            LED_OFF(RED);
-            TS_DELAY(200);
-            IWDG_ReloadCounter();
-          }
+    if (TS_IS_OVER(tsUART, 50)) {
+        while (FIFO_Length(&UART_RecFIFO) >= 6 && UART_RecFIFO.pBuffer[0] != 0x7E);
+        if (FIFO_Length(&UART_RecFIFO) >= 5 &&UART_RecFIFO.pBuffer[1] == 0x1B) {
+          
+            if ((DevAddress == UART_RecFIFO.pBuffer[2] || UART_RecFIFO.pBuffer[2] == 0) 
+                && AddCheck(UART_RecFIFO.pBuffer,5) == UART_RecFIFO.pBuffer[5]) {
+                if (UART_RecFIFO.pBuffer[3] == CMD_DEVICE_RST) {
+                    LED_ON(RED);
+                    WWDG_SWReset();
+                    while (1);
+                } else if (UART_RecFIFO.pBuffer[3] == CMD_DEVICE_CHK) {
+                    LED_ON(RED);
+                    SendCmd(CMD_DEVICE_CHK_RSP, NULL, 0);
+                } else if (UART_RecFIFO.pBuffer[3] == CMD_READ_IC) {
+                    if (IC_Read) {
+                        LED_ON(RED);
+                        SendCmd(CMD_READ_IC_RSP, IC_ReadBuf, 4);
+                    } else {
+                        LED_ON(RED);
+                        TS_DELAY(100);
+                        LED_OFF(RED);
+                    }
+                } else if (UART_RecFIFO.pBuffer[3] == CMD_READ_IC_FRIM) {
+                    if (IC_Read) {
+                        LED_ON(RED);
+                        SendCmd(CMD_READ_IC_FRIM_RSP, IC_ReadBuf, 20);
+                    } else {
+                        LED_ON(RED);
+                        TS_DELAY(100);
+                        LED_OFF(RED);
+                    }
+                }
+                else if (UART_RecFIFO.pBuffer[3] == CMD_WRITE_FRIM && UART_RecFIFO.pBuffer[4] == 0x10) {
+                    LED_ON(RED);
+                    /*往IC卡中写入厂商信息*/
+                    if (RfidWriteData(CARD_BLOCK, 1, &UART_RecFIFO.pBuffer[5])) {
+                        LED_ON(RED);
+                        TS_DELAY(200);
+                        LED_OFF(RED);
+                        TS_DELAY(200);
+                        IWDG_ReloadCounter();
+                        LED_ON(RED);
+                        TS_DELAY(200);
+                        LED_OFF(RED);
+                        TS_DELAY(200);
+                        IWDG_ReloadCounter();
+                    }
+                }
+            }
         }
-      }
     }
-  }
 
-  if (TS_IS_OVER(tsUART, 1000)) {
-    LED_OFF(GREEN);
-    if (FIFO_Length(&UART_RecFIFO) > 0 && TS_IS_OVER(tsUART, 3000)) {
-      FIFO_Flush(&UART_RecFIFO);
+    if (TS_IS_OVER(tsUART, 1000)) {
+        LED_OFF(GREEN);
+        if (FIFO_Length(&UART_RecFIFO) > 0 && TS_IS_OVER(tsUART, 3000)) {
+            FIFO_Flush(&UART_RecFIFO);
+        }
     }
-  }
 }
+//
+///**
+// * 接收处理命令
+// */
+//void ReadCmdDeal(void) {
+//  uint8_t buf[32], len = 0;
+//
+//  if (TS_IS_OVER(tsUART, 50)) {
+//    while (FIFO_Length(&UART_RecFIFO) >= 6 && FIFO_Get(&UART_RecFIFO) != 0x7E);
+//    if (FIFO_Length(&UART_RecFIFO) >= 5 && FIFO_Get(&UART_RecFIFO) == 0x1B) {
+//      
+//      buf[0] = 0x7E;
+//      buf[1] = 0x1B;
+//      FIFO_Read(&UART_RecFIFO, &buf[2], 3);
+//      if (buf[4] > 0) {
+//        FIFO_Read(&UART_RecFIFO, &buf[5], buf[4]);
+//      }
+//      len = buf[4] + 5;
+//      buf[len] = FIFO_Get(&UART_RecFIFO);
+//
+//      if ((DevAddress == buf[2] || buf[2] == 0) && AddCheck(buf, len) == buf[len]) {
+//
+//        if (buf[3] == CMD_DEVICE_RST) {
+//          LED_ON(GREEN);
+//          WWDG_SWReset();
+//          while (1);
+//        } else if (buf[3] == CMD_DEVICE_CHK) {
+//          LED_ON(GREEN);
+//          SendCmd(CMD_DEVICE_CHK_RSP, NULL, 0);
+//        } else if (buf[3] == CMD_READ_IC) {
+//          if (IC_Read) {
+//            LED_ON(GREEN);
+//            SendCmd(CMD_READ_IC_RSP, IC_ReadBuf, 4);
+//          } else {
+//            LED_ON(RED);
+//            TS_DELAY(100);
+//            LED_OFF(RED);
+//          }
+//        } else if (buf[3] == CMD_READ_IC_FRIM) {
+//          if (IC_Read) {
+//            LED_ON(GREEN);
+//            SendCmd(CMD_READ_IC_FRIM_RSP, IC_ReadBuf, 20);
+//          } else {
+//            LED_ON(RED);
+//            TS_DELAY(100);
+//            LED_OFF(RED);
+//          }
+//        } else if (buf[3] == CMD_WRITE_FRIM && buf[4] == 16) {
+//          LED_ON(GREEN);
+//          /*往IC卡中写入厂商信息*/
+//          if (RfidWriteData(CARD_BLOCK, 1, &buf[5])) {
+//            LED_ON(RED);
+//            TS_DELAY(200);
+//            LED_OFF(RED);
+//            TS_DELAY(200);
+//            IWDG_ReloadCounter();
+//            LED_ON(RED);
+//            TS_DELAY(200);
+//            LED_OFF(RED);
+//            TS_DELAY(200);
+//            IWDG_ReloadCounter();
+//          }
+//        }
+//      }
+//    }
+//  }
+//
+//  if (TS_IS_OVER(tsUART, 1000)) {
+//    LED_OFF(GREEN);
+//    if (FIFO_Length(&UART_RecFIFO) > 0 && TS_IS_OVER(tsUART, 3000)) {
+//      FIFO_Flush(&UART_RecFIFO);
+//    }
+//  }
+//}
 
 /**
  * 串口接收到新的数据

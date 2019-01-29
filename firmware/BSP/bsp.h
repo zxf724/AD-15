@@ -50,23 +50,32 @@
 #define LED_NET                 13
 #define LED_STATUS              14
 
-#define PA_EN_PIN               8
+#define PA_EN_PIN               17
 
 #define GSM_TXD_PIN             5
 #define GSM_RXD_PIN             4
-#define GSM_PWRKEY_PIN          6
-#define GSM_EN_PIN              7
+#define GSM_PWRKEY_PIN          30
+#define GSM_EN_PIN              0
 
 #define M_SEN_1                 21
 #define M_CTR_R1                22
 #define M_CTR_L1                23
 
-#define IR_SENSOR_PIN           17
+#define M_SEN_2                 29
+#define M_CTR_R2                25
+#define M_CTR_L2                28
 
-#define OVER_SENSOR_PIN         2
+#define IR_SENSOR_PIN           18
+#define IR_EN_PIN               19
+
+#define OVER_SENSOR_PIN         6
+#define FORWARD_SENSOR_PIN      7
+#define BACK_SENSOR_PIN         8
    
-#define RFID_RX_PIN             24
-#define RFID_TX_PIN             25
+#define RFID_RX_PIN             9
+#define RFID_TX_PIN             10
+#define RFID_IO                 12
+#define RFID_RE                 11
 
 /**
 	* @}
@@ -86,6 +95,11 @@
 #define MOTOR_FORWARD()         do{nrf_gpio_pin_set(M_CTR_R1);nrf_gpio_pin_clear(M_CTR_L1);} while(0)
 #define MOTOR_BACK()            do{nrf_gpio_pin_set(M_CTR_L1);nrf_gpio_pin_clear(M_CTR_R1);} while(0)
 #define MOTOR_IS_STUCK()        (nrf_gpio_pin_read(M_SEN_1))
+      
+#define MOTOR2_STOP()            do{nrf_gpio_pin_clear(M_CTR_R2);nrf_gpio_pin_clear(M_CTR_L2);} while(0)
+#define MOTOR2_FORWARD()         do{nrf_gpio_pin_set(M_CTR_R2);nrf_gpio_pin_clear(M_CTR_L2);} while(0)
+#define MOTOR2_BACK()            do{nrf_gpio_pin_set(M_CTR_L2);nrf_gpio_pin_clear(M_CTR_R2);} while(0)
+#define MOTOR2_IS_STUCK()        (nrf_gpio_pin_read(M_SEN_2))
 
 #define PA_ENABLE()             (nrf_gpio_pin_set(PA_EN_PIN))
 #define PA_DISABLE()            (nrf_gpio_pin_clear(PA_EN_PIN))
@@ -96,8 +110,12 @@
 #define IO_READ(x)              (nrf_gpio_pin_read(x))
 
 #define IR_CHECK()              (nrf_gpio_pin_read(IR_SENSOR_PIN) == 0)
+#define IR_EN()                 (nrf_gpio_pin_set(IR_EN_PIN))
+#define IR_DIS()                 (nrf_gpio_pin_clear(IR_EN_PIN))
   
 #define UM_OVER_CHECK()         (nrf_gpio_pin_read(OVER_SENSOR_PIN) != 0)
+#define UM_FORWARD_CHECK()      (nrf_gpio_pin_read(FORWARD_SENSOR_PIN) != 0)
+#define UM_BACK_CHECK()         (nrf_gpio_pin_read(BACK_SENSOR_PIN) != 0)
 
 #define UART_SET_CMD()          nrf_uart_txrx_pins_set(NRF_UART0, TX_PIN_NUMBER, RX_PIN_NUMBER)
 #define UART_SET_RFID()         nrf_uart_txrx_pins_set(NRF_UART0, RFID_TX_PIN, RFID_RX_PIN)

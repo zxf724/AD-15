@@ -197,6 +197,7 @@ uint16_t user_uart_ReadData(uint8_t* data, uint16_t len) {
     *(data + ret) = FIFO_Get(&UART_RecFIFO);
     ret++;
   }
+//  for(uint8_t i=0;i<len;i++)	DBG_LOG("data[%d]:0x%02x",i, buf[i]);
   return ret;
 }
 
@@ -237,7 +238,6 @@ static void uart_incoming_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_
   if (UART_MutexCount == 0) {
 
     NRF_UART0->TASKS_STOPRX = 1;
-
     rxPIN = pin;
     nrf_drv_gpiote_in_event_disable(RFID_RX_PIN);
     nrf_drv_gpiote_in_event_disable(RX_PIN_NUMBER);

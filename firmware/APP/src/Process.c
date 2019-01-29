@@ -63,6 +63,7 @@ BOOL CMD_Updata(char* cmd, cJSON* desired) {
   uint32_t tick = 0;
 
   root = cJSON_CreateObject();
+
   if (root != NULL) {
     app_timer_cnt_get(&tick);
     cJSON_AddNumberToObject(root, "messageid", tick);
@@ -70,14 +71,16 @@ BOOL CMD_Updata(char* cmd, cJSON* desired) {
     cJSON_AddStringToObject(root, "cmd", cmd);
     cJSON_AddNumberToObject(root, "deviceid", WorkData.DeviceID);
     cJSON_AddItemToObjectCS(root, "desired", desired);
-
+	
     s = cJSON_PrintBuffered(root, 280, 0);
     if (s != NULL) {
-      DBG_LOG("CMD_Updata ts:%u, data:%s", RTC_ReadCount(), s);
       ret = Publish_MQTT("/AD-15", QOS0, (uint8_t*)s, strlen(s)) ? TRUE : FALSE;
       free(s);
     }
     cJSON_Delete(root);
+  }
+  else{
+    cJSON_Delete(desired);
   }
   return ret;
 }
@@ -217,20 +220,16 @@ static void ArrivePath(uint8_t* dat, uint16_t len) {
  */
 void Status_Updata(void) {
   cJSON* desired = NULL;
-
   desired = cJSON_CreateObject();
+  
   if (desired != NULL) {
     cJSON_AddNumberToObject(desired, "timestamp", RTC_ReadCount());
     cJSON_AddStringToObject(desired, "ip", WorkData.MQTT_Server);
     cJSON_AddNumberToObject(desired, "port", WorkData.MQTT_Port);
-    cJSON_AddNumberToObject(desired, "heartbeat", WorkData.MQTT_PingInvt);
-    cJSON_AddStringToObject(desired, "project", "AD-15");
-    cJSON_AddNumberToObject(desired, "firmware", VERSION);
-    cJSON_AddStringToObject(desired, "hardware", VERSION_HARDWARE);
-    cJSON_AddNumberToObject(desired, "batvol", 12000); //
-    cJSON_AddStringToObject(desired, "status", "ok");
+    cJSON_AddNumberToObject(desired, "heartbeat", WorkData.MQTT_PingInvt);   
     CMD_Updata("CMD-102", desired);
   }
+  
 }
 
 /**
@@ -327,7 +326,7 @@ static BOOL CMD_Confirm_Rsp(uint32_t msgid, char* ret) {
   cJSON_AddNumberToObject(bodydesired, "messageid", msgid);
   cJSON_AddStringToObject(bodydesired, "ret", ret);
 
-  r = CMD_Updata("CMD-99", bodydesired);
+  r = CMD_Updata("CMD-99", bodydesired);  
   return r;
 }
 

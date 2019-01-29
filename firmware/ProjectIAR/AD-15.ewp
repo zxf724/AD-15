@@ -363,6 +363,7 @@
           <state>$PROJ_DIR$\..\freertos\config</state>
           <state>$PROJ_DIR$\..\freertos\portable\IAR\nrf51</state>
           <state>$PROJ_DIR$\..\freertos\portable\CMSIS\nrf51</state>
+          <state>$PROJ_DIR$</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -1195,6 +1196,9 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\SDK\drivers_nrf\twi_master\nrf_drv_twi.c</name>
+      <excluded>
+        <configuration>BLEE</configuration>
+      </excluded>
     </file>
     <file>
       <name>$PROJ_DIR$\..\SDK\drivers_nrf\uart\nrf_drv_uart.c</name>
@@ -1216,6 +1220,9 @@
     <name>nRF_Libraries</name>
     <file>
       <name>$PROJ_DIR$\..\SDK\libraries\button\app_button.c</name>
+      <excluded>
+        <configuration>BLEE</configuration>
+      </excluded>
     </file>
     <file>
       <name>$PROJ_DIR$\..\SDK\libraries\util\app_error.c</name>
@@ -1225,6 +1232,9 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\SDK\libraries\pwm\app_pwm.c</name>
+      <excluded>
+        <configuration>BLEE</configuration>
+      </excluded>
     </file>
     <file>
       <name>$PROJ_DIR$\..\SDK\libraries\timer\app_timer.c</name>

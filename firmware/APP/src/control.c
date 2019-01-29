@@ -35,14 +35,16 @@ uint16_t BatVol = 0;
 motor_status_t Motor_staus;
 
 APP_TIMER_DEF(TimerId_Lock);
+APP_TIMER_DEF(TimerId_Move);
 APP_TIMER_DEF(TimerId_LED_NET);
 APP_TIMER_DEF(TimerId_LED_STATUS);
 APP_TIMER_DEF(TimerId_TTS);
 
-static uint8_t TTS_Step = 0, Direction = 0, RFID_OK = 0;
+static uint8_t TTS_Step = 0, Direction = 0,move_status = 0,RFID_flag = 0,
+                move_step = 0,timeout_status = 0,IR_Status = 0,borrow_flag = 0;
 static char* TTS_Text = NULL;
 static uint16_t motorTick = 0;
-static uint32_t  RFID_Read = 0, RFID_Repay = 0, RFID_Borrow = 0;
+static uint32_t  RFID_Read = 0;
 static Period_Block_t  LED_NET_Period, LED_STATUS_Period;
 
 /* Private function prototypes -----------------------------------------------*/
@@ -50,10 +52,11 @@ static void Motor_TimerCB(void* p_context);
 static void LED_NET_TimerCB(void* p_context);
 static void LED_STATUS_TimerCB(void* p_context);
 static void TTS_TimerCB(void* p_context);
+static void Move_TimerCB(void * p_context);
 static void RFID_SendCmd(uint8_t addr, uint8_t cmd, uint8_t* data, uint8_t datalen);
-static uint8_t RFID_ReadPoll(uint8_t addr, uint8_t** data);
 static void funControl(int argc, char* argv[]);
-
+static void Reback_Action(void);
+static void Reforward_Action(void);
 /* Exported functions ---------------------------------------------------------*/
 
 /**
@@ -64,6 +67,7 @@ static void funControl(int argc, char* argv[]);
 void Control_Init(void) {
 
   app_timer_create(&TimerId_Lock, APP_TIMER_MODE_REPEATED, Motor_TimerCB);
+  app_timer_create(&TimerId_Move, APP_TIMER_MODE_REPEATED, Move_TimerCB);
   app_timer_create(&TimerId_LED_NET, APP_TIMER_MODE_SINGLE_SHOT, LED_NET_TimerCB);
   app_timer_create(&TimerId_LED_STATUS, APP_TIMER_MODE_SINGLE_SHOT, LED_STATUS_TimerCB);
   app_timer_create(&TimerId_TTS, APP_TIMER_MODE_SINGLE_SHOT, TTS_TimerCB);
@@ -81,6 +85,22 @@ void Control_Polling(void) {
   uint8_t led_n;
   static uint8_t led_net;
   static motor_status_t status;
+  
+  
+  /*循环读卡*/
+  uint8_t* pdata = NULL;
+  if (RFID_ReadPoll(0, &pdata) == CMD_READ_IC_RSP) {
+
+    RFID_Read = (pdata[3] << 24) | (pdata[2] << 16) | (pdata[1] << 8) | pdata[0];
+    DBG_LOG("Read New ID:%#x", RFID_Read);
+    RFID_flag = 1;
+    if (Motor_staus == status_idle && borrow_flag != 2){
+        nrf_delay_ms(2000);
+        Repay_Action();
+      }
+    }
+  
+  
   /*TTS播报*/
   if (TTS_Step == 1) {
     TTS_Step = 2;
@@ -129,26 +149,29 @@ void Control_Polling(void) {
         break;
       case status_borrow_complite:
         Motor_staus = status_idle;
-        if (RFID_Borrow != RFID_Read) {
-          RFID_Borrow = RFID_Read;
+        if (0 != RFID_Read) {
           TTS_Play("出伞成功，谢谢");
           WorkData.StockCount--;
           WorkData_Update();
           Protocol_Report_Umbrella_Borrow(RFID_Read, status);
           Report_Umbrella_Borrow_Status(RFID_Read, status);
+          RFID_Read = 0;
+          borrow_flag = 0;
         }
         break;
       case status_repay_complite:
         Motor_staus = status_idle;
-        if (RFID_Repay != RFID_Read) {
-          RFID_Repay = RFID_Read;
+        if (0 != RFID_Read) {
           TTS_Play("还伞成功，谢谢");
           WorkData.StockCount++;
+          DBG_LOG("cJSON repay umbrella status");
           WorkData_Update();
+          
           if (Report_Umbrella_Repy_Status(RFID_Read, status, RTC_ReadCount()) == FALSE) {
             /*还伞上报失败，存储记录*/
             Write_StoreLog(RFID_Read);
           }
+          RFID_Read = 0;
         }
         break;
       case status_motor_stuck:
@@ -162,12 +185,29 @@ void Control_Polling(void) {
         }
         break;
       case status_ir_stuck:
-        TTS_Play("请正确折叠放置雨伞后再次归还");
         Motor_staus = status_idle;
         if (Direction == 1) {
+          if(IR_Status == 1){
+            TTS_Play("请勿遮挡出伞口,请重新借伞");
+          }else if(IR_Status == 2){
+            nrf_delay_ms(1000);
+            TTS_Play("请勿遮挡出伞口");
+            nrf_delay_ms(2000);
+             Reback_Action();
+          }
+          IR_Status = 0;
           Protocol_Report_Umbrella_Borrow(0, status);
           Report_Umbrella_Borrow_Status(0, status);
         } else if (Direction == 2) {
+          if(IR_Status == 1){
+            TTS_Play("请正确折叠放置雨伞后再次归还");
+          }else if(IR_Status == 2){
+            nrf_delay_ms(1000);
+              TTS_Play("请正确折叠放置雨伞后再次归还");
+              nrf_delay_ms(2000);
+              Reforward_Action();
+          }
+          IR_Status = 0;
           Report_Umbrella_Repy_Status(0, status, RTC_ReadCount());
         }
         break;
@@ -210,29 +250,18 @@ void Control_Polling(void) {
       WorkData_Update();
     }
   }
-  /*循环读卡*/
-  uint8_t* pdata = NULL;
-  if (RFID_ReadPoll(0, &pdata) == CMD_READ_IC_RSP) {
 
-    RFID_OK = 1;
-    RFID_Read = (pdata[3] << 24) | (pdata[2] << 16) | (pdata[1] << 8) | pdata[0];
-    DBG_LOG("Read New ID:%#x", RFID_Read);
-    if (Motor_staus == status_idle) {
-      Repay_Action();
-    }
-  } else {
-    RFID_OK = 0;
-  }
 }
 
 /**
  * 借伞操作函数
  */
-void Borrow_Action(void) {
-
+void Borrow_Action(void){
+  
   app_timer_stop(TimerId_Lock);
   motorTick = 0;
-
+  IR_EN();
+  nrf_delay_ms(80);
   Direction = 1;
   if (WorkData.StockCount == 0) {
     LED_MOTOR_NG();
@@ -242,16 +271,28 @@ void Borrow_Action(void) {
   /*检查是否卡住*/
   else if (IR_CHECK()) {
     LED_IR_OVER_FLASH();
+    IR_Status = 1;
     Motor_staus = status_ir_stuck;
     DBG_LOG("Borrow_Action IR Stuck.");
   } else {
     Motor_staus = status_borrow;
+    borrow_flag = 2;
     LED_ON(STATUS);
     MOTOR_FORWARD();
     app_timer_start(TimerId_Lock, APP_TIMER_TICKS(MOTOR_ACTION_TIME, APP_TIMER_PRESCALER), NULL);
   }
 }
 
+static void Reback_Action(void){
+  Direction = 2;
+  MOTOR_BACK();
+  app_timer_start(TimerId_Lock, APP_TIMER_TICKS(MOTOR_ACTION_TIME, APP_TIMER_PRESCALER), NULL);
+}
+static void Reforward_Action(void){
+  Direction = 1;
+  MOTOR_FORWARD();
+  app_timer_start(TimerId_Lock, APP_TIMER_TICKS(MOTOR_ACTION_TIME, APP_TIMER_PRESCALER), NULL);
+}
 /**
  * 还伞操作函数
  */
@@ -259,8 +300,9 @@ void Repay_Action(void) {
 
   app_timer_stop(TimerId_Lock);
   motorTick = 0;
-
   Direction = 2;
+  IR_EN();
+  nrf_delay_ms(80);
   if (WorkData.StockCount >= WorkData.StockMax) {
     LED_MOTOR_NG();
     Motor_staus = status_full;
@@ -269,6 +311,7 @@ void Repay_Action(void) {
   /*检查是否卡住*/
   else if (IR_CHECK()) {
     LED_IR_OVER_FLASH();
+    IR_Status = 1;
     Motor_staus = status_ir_stuck;
     DBG_LOG("Repay_Action IR Stuck.");
   } else {
@@ -279,10 +322,24 @@ void Repay_Action(void) {
   }
 }
 
+void Move_Forward_Action(void){
+    DBG_LOG("Move forward action");
+    MOTOR2_FORWARD();
+    app_timer_start(TimerId_Move, APP_TIMER_TICKS(MOVE_ACTION_TIME, APP_TIMER_PRESCALER), NULL);
+}
+void Move_Back_Action(void){
+    DBG_LOG("Move back action");
+    MOTOR2_BACK();
+    app_timer_start(TimerId_Move, APP_TIMER_TICKS(MOVE_ACTION_TIME, APP_TIMER_PRESCALER), NULL);
+}
+void Move_stop_Action(void){
+    MOTOR2_STOP();
+}   
 /**
  * 停止设备操作函数
  */
 void Stop_Action(void) {
+  IR_DIS();
   LED_OFF(STATUS);
   motorTick = 0;
   app_timer_stop(TimerId_Lock);
@@ -361,7 +418,63 @@ void WatchDog_Clear(void) {
  * @retval none.
  * @param p_context
  */
+
+static void Move_TimerCB(void * p_context){
+  
+  if(UM_FORWARD_CHECK() != 1){
+    DBG_LOG("waiting for moving back");
+        Move_stop_Action(); 
+        Motor_staus = status_borrow_complite;
+        nrf_delay_ms(5);
+        Move_Back_Action();
+        move_status = 1;
+        move_step = 0;
+        timeout_status =1;
+        
+  }
+  if(UM_BACK_CHECK() != 1 && move_status == 1){
+    DBG_LOG("finish the task");
+      move_step = 0;
+      Move_stop_Action();
+      app_timer_stop(TimerId_Move);
+      move_status = 0;
+      
+  }
+    /*延时检查是否过流*/
+  if (MOTOR2_IS_STUCK()) {
+    LED_MOTOR_OVER_FLASH();
+    app_timer_stop(TimerId_Move);
+    move_step = 0;
+    Move_stop_Action();
+    Motor_staus = status_motor_stuck;
+    DBG_LOG("Motor is Stuck.");
+  }
+  
+  if(timeout_status == 0){
+//    app_timer_start(TimerId_Move, APP_TIMER_TICKS(MOVE_ACTION_TIME, APP_TIMER_PRESCALER), NULL);
+    move_step ++;
+    if(move_step == 200){
+        move_step = 0;
+        Move_stop_Action();
+        app_timer_stop(TimerId_Move);
+    }
+  }
+  else{
+      move_step++;
+    if(move_step == 200){
+        move_step = 0;
+        timeout_status = 0;
+        Move_Back_Action();
+//        Move_stop_Action();
+//        app_timer_stop(TimerId_Move);
+    }
+  }
+  DBG_LOG("test the task");
+    
+}
+
 static void Motor_TimerCB(void* p_context) {
+ 
   /*延时检查是否过流*/
   if (motorTick > 10 && MOTOR_IS_STUCK()) {
     LED_MOTOR_OVER_FLASH();
@@ -375,16 +488,23 @@ static void Motor_TimerCB(void* p_context) {
     LED_IR_OVER_FLASH();
     app_timer_stop(TimerId_Lock);
     Stop_Action();
+    IR_Status = 2;
     Motor_staus = status_ir_stuck;
     DBG_LOG("Motor IR Stuck.");
   }
   /*延时检查到位*/
-  if (motorTick > 100 && UM_OVER_CHECK()) {
+  if (motorTick > 100 && UM_OVER_CHECK() == 0) {
     app_timer_stop(TimerId_Lock);
     Stop_Action();
     if (Motor_staus == status_borrow) {
-      Motor_staus = status_borrow_complite;
+      DBG_LOG("Motor Running forware.");
+      if (RFID_flag == 1){
+        Move_Forward_Action();
+        RFID_flag = 0;
+      } 
+      
     } else if (Motor_staus == status_repay) {
+	  DBG_LOG("Motor Running back.");
       Motor_staus = status_repay_complite;
     }
     DBG_LOG("Motor Running over.");
@@ -394,7 +514,7 @@ static void Motor_TimerCB(void* p_context) {
     motorTick = 0;
     Stop_Action();
     Motor_staus = status_timeout;
-    DBG_LOG("Motor Running Timeout.");
+	DBG_LOG("Motor Running Timeout.");
   }
 }
 
@@ -452,7 +572,7 @@ static void TTS_TimerCB(void* p_context) {
 
   if (TTS_Step == 0) {
     TTS_Step = 1;
-  } else if (TTS_Step == 3) {
+  } else if (TTS_Step == 2) {
     TTS_Step = 0;
     PA_DISABLE();
   }
@@ -468,19 +588,18 @@ static void TTS_TimerCB(void* p_context) {
  * @param datalen 附加数据长度
  */
 static void RFID_SendCmd(uint8_t addr, uint8_t cmd, uint8_t* data, uint8_t datalen) {
-  uint8_t buf[32], *p = buf, len = 5;
+  uint8_t buf[32], len = 5;
 
-  *p++ = 0x7E;
-  *p++ = 0x1B;
-  *p++ = addr;
-  *p++ = cmd;
-  *p++ = datalen;
+  buf[0] = 0x7E;
+  buf[1] = 0x1B;
+  buf[2]= addr;
+  buf[3]= cmd;
+  buf[4] = datalen;
   if (data != NULL && datalen > 0) {
-    memcpy(p, data, datalen);
-    p += datalen;
+    memcpy(&buf[5], data, datalen);
     len = len + datalen;
   }
-  *p = AddCheck(buf, len);
+  buf[5 + datalen] = AddCheck(buf, len);
   len += 1;
 
   RFID_SEND(buf, len);
@@ -493,7 +612,7 @@ static void RFID_SendCmd(uint8_t addr, uint8_t cmd, uint8_t* data, uint8_t datal
  * @param data   读出的附加数据内容
  * @return 返回反馈的命令
  */
-static uint8_t RFID_ReadPoll(uint8_t addr, uint8_t** data) {
+uint8_t RFID_ReadPoll(uint8_t addr, uint8_t** data) {
   static uint8_t buf[32];
   uint8_t len = 0, *p = buf, ret = 0;
 
@@ -505,13 +624,14 @@ static uint8_t RFID_ReadPoll(uint8_t addr, uint8_t** data) {
       len = 32;
     }
     user_uart_ReadData(buf, len);
+//	for(uint8_t i=0;i<len;i++) 	DBG_LOG("data[%d]:0x%02x",i, buf[i]);
     UART_RX_PIN_SELECT(UART_RX_DEFAULT_PIN);
     while (*p != 0x7E) {
       p++;
       len--;
     }
     if (*p == 0x7E && *(p + 1) == 0x1B
-        && (*(p + 2) == addr || addr == 0) && AddCheck(p, len - 1) == p[len - 1]) {
+        && (*(p + 2) == 0xAC || addr == 0) && AddCheck(p, len - 1) == p[len - 1]) {
       ret = *(p + 3);
       *data = p + 5;
     }
@@ -552,6 +672,39 @@ static void funControl(int argc, char* argv[]) {
   } else if (ARGV_EQUAL("stop")) {
     MOTOR_STOP();
     DBG_LOG("Motor stop.");
+  }
+  else if (ARGV_EQUAL("forward_action")) {
+    Move_Forward_Action();
+    DBG_LOG("forward action.");
+  }
+  else if (ARGV_EQUAL("back_action")) {
+    Move_Back_Action();
+    DBG_LOG("back action.");
+  }
+  else if (ARGV_EQUAL("rfid_cmd")) {
+    RFID_SendCmd(0,0x02,NULL,0);
+    DBG_LOG("rfid send cmd.");
+  }
+    else if (ARGV_EQUAL("test_forware_action")) {
+      Repay_Action();
+
+    DBG_LOG("test forware action.");
+  }
+    else if (ARGV_EQUAL("test_back_actionn")) {
+      Borrow_Action();
+    DBG_LOG("test back action.");
+  }
+  else if (ARGV_EQUAL("motor2_forware")) {
+      MOTOR2_FORWARD();
+    DBG_LOG("motor2 forware action.");
+  }
+  else if (ARGV_EQUAL("motor2_back")) {
+      MOTOR2_BACK();
+    DBG_LOG("motor2 back action.");
+  }
+    else if (ARGV_EQUAL("motor2_stop")) {
+      MOTOR2_STOP();
+    DBG_LOG("motor2 back action.");
   }
 }
 
