@@ -12,6 +12,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "control.h"
+#include "protocol.h"
 
 /** @addtogroup firmwave_F2_BLE
   * @{
@@ -77,13 +78,13 @@ int main(void) {
   FlashWRPProcess();
 
   APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
-  BSP_Init();
+  BSP_Init();       //IO口配置
   user_uart_init();
   Command_Init();
   RTC_Init();
     
   user_BLE_Start();
-  WorkData_Init();
+  WorkData_Init();   //工作数据初始化
   user_BLE_Connected();
   nrf_drv_rng_init(NULL);
 
